@@ -1,6 +1,6 @@
 # OpenDeepResearcher-API
 
-A REST API service for conducting deep research on any topic using AI. This project is an adaptation of Justin Pinkney's research notebook into a modular API service.
+A REST API service for conducting deep research on any topic using AI. This project is an adaptation of Matt Shumer's research notebook into a modular API service.
 
 ## Overview
 

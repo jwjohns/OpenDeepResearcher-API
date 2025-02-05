@@ -1,6 +1,16 @@
-# Contributing to OpenDeepResearcher
+# Contributing to OpenDeepResearcher-API
 
-First off, thank you for considering contributing to OpenDeepResearcher! It's people like you that make OpenDeepResearcher such a great tool.
+First off, thank you for considering contributing to OpenDeepResearcher-API! This project aims to revolutionize AI-powered research by providing a comprehensive suite of tools for deep, automated research and analysis.
+
+## Project Overview
+
+OpenDeepResearcher-API consists of several components:
+- **OpenDeepResearcher-API**: The core REST API service
+- **Research Engine**: The intelligent research orchestration system
+- **Content Processing Pipeline**: Advanced web content extraction and analysis
+- **Multi-Provider LLM Integration**: Flexible AI model integration system
+
+Our goal is to create an open, extensible platform for automated research that can be used standalone or integrated into larger systems.
 
 ## Code of Conduct
 
@@ -50,10 +60,10 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 1. **Setting up your development environment**
 ```bash
 # Clone your fork
-git clone https://github.com/<your-username>/OpenDeepResearcher.git
+git clone https://github.com/<your-username>/OpenDeepResearcher-API.git
 
 # Add upstream remote
-git remote add upstream https://github.com/original/OpenDeepResearcher.git
+git remote add upstream https://github.com/original/OpenDeepResearcher-API.git
 
 # Create virtual environment
 python -m venv venv-odr-310
@@ -167,3 +177,5 @@ Contributors will be recognized in:
 ## License
 
 By contributing, you agree that your contributions will be licensed under the MIT License. 
+
+This project is based on Matt Shumer's original OpenDeepResearcher notebook implementation. The original work has been adapted into a REST API service with additional features like multi-provider LLM support, parallel processing, and real-time status updates. 
