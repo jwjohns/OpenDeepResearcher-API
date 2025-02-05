@@ -40,9 +40,9 @@ logger.info("Loaded application settings")
 
 # Initialize research engine
 research_engine = ResearchEngine(
-    openrouter_api_key=settings.openrouter_api_key,
     serpapi_api_key=settings.serpapi_api_key,
-    jina_api_key=settings.jina_api_key
+    jina_api_key=settings.jina_api_key,
+    config=settings
 )
 logger.info("Initialized ResearchEngine")
 

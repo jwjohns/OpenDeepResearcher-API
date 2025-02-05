@@ -4,6 +4,7 @@ from typing import List, Tuple, Dict, Optional
 import json
 import logging
 import os
+from .llm_providers import get_llm_provider, LLMProvider
 
 # Configure logging
 logging.basicConfig(
@@ -15,66 +16,35 @@ logger = logging.getLogger(__name__)
 class ResearchEngine:
     def __init__(
         self,
-        openrouter_api_key: str,
         serpapi_api_key: str,
         jina_api_key: str,
-        model: str = "meta-llama/llama-3-8b-instruct:free"
+        config
     ):
-        self.openrouter_api_key = openrouter_api_key
         self.serpapi_api_key = serpapi_api_key
         self.jina_api_key = jina_api_key
-        self.model = model
+        
+        # Initialize LLM provider
+        self.llm_provider = get_llm_provider(config)
         
         # API endpoints
-        self.openrouter_url = "https://openrouter.ai/api/v1/chat/completions"
         self.serpapi_url = "https://serpapi.com/search"
         self.jina_base_url = "https://r.jina.ai/"
         
-        logger.info(f"ResearchEngine initialized with model: {model}")
+        logger.info(f"ResearchEngine initialized with provider: {config.llm_provider}")
         
-    async def call_openrouter(self, session: aiohttp.ClientSession, messages: List[Dict[str, str]]) -> Optional[str]:
-        headers = {
-            "Authorization": f"Bearer {self.openrouter_api_key}",
-            "HTTP-Referer": "https://github.com/yourusername/OpenDeepResearcher",
-            "X-Title": "OpenDeepResearcher API",
-            "Content-Type": "application/json"
-        }
-        
+    async def call_llm(self, session: aiohttp.ClientSession, messages: List[Dict[str, str]]) -> Optional[str]:
+        """Call the LLM provider with the given messages."""
         try:
-            logger.debug(f"Calling OpenRouter with model {self.model}")
-            logger.debug(f"Request messages: {messages}")
-            
-            payload = {
-                "model": self.model,
-                "messages": messages,
-                "temperature": 0.3,
-                "max_tokens": 1000
-            }
-            
-            async with session.post(
-                self.openrouter_url,
-                headers=headers,
-                json=payload
-            ) as resp:
-                response_text = await resp.text()
-                logger.debug(f"OpenRouter raw response: {response_text}")
-                
-                if resp.status == 200:
-                    data = json.loads(response_text)
-                    content = data["choices"][0]["message"]["content"]
-                    logger.debug(f"OpenRouter API call successful, content: {content}")
-                    return content
-                elif resp.status == 429:
-                    data = json.loads(response_text)
-                    error_msg = data.get("error", {}).get("message", "Rate limit exceeded")
-                    logger.error(f"OpenRouter rate limit error: {error_msg}")
-                    return None
-                else:
-                    logger.error(f"OpenRouter API error: {resp.status}")
-                    logger.error(f"Response: {response_text}")
-                    return None
+            logger.debug(f"Calling LLM provider with messages: {messages}")
+            response = await self.llm_provider.generate_completion(session, messages)
+            if response:
+                logger.debug(f"LLM response: {response}")
+                return response
+            else:
+                logger.error("LLM provider returned None")
+                return None
         except Exception as e:
-            logger.error(f"Error calling OpenRouter: {str(e)}", exc_info=True)
+            logger.error(f"Error calling LLM provider: {str(e)}", exc_info=True)
             return None
 
     def _clean_llm_response(self, response: str) -> str:
@@ -107,7 +77,7 @@ class ResearchEngine:
         ]
         
         logger.info(f"Generating search queries for: {user_query}")
-        response = await self.call_openrouter(session, messages)
+        response = await self.call_llm(session, messages)
         if response:
             try:
                 # More aggressive cleaning to remove any explanatory text
@@ -185,7 +155,7 @@ class ResearchEngine:
         ]
         
         logger.info("Evaluating page usefulness")
-        response = await self.call_openrouter(session, messages)
+        response = await self.call_llm(session, messages)
         if response:
             answer = self._clean_llm_response(response)
             logger.info(f"Page usefulness evaluation result: {answer}")
@@ -219,7 +189,7 @@ class ResearchEngine:
         ]
         
         logger.info("Extracting relevant context from webpage")
-        response = await self.call_openrouter(session, messages)
+        response = await self.call_llm(session, messages)
         if response:
             context = response.strip()
             logger.debug(f"Extracted context (first 100 chars): {context[:100]}")
@@ -251,7 +221,7 @@ class ResearchEngine:
         ]
         
         logger.info("Checking if more research queries are needed")
-        response = await self.call_openrouter(session, messages)
+        response = await self.call_llm(session, messages)
         if response:
             cleaned = self._clean_llm_response(response)
             logger.debug(f"Response for new queries: {cleaned}")
@@ -289,7 +259,7 @@ class ResearchEngine:
             }
         ]
         
-        response = await self.call_openrouter(session, messages)
+        response = await self.call_llm(session, messages)
         return response if response else "Unable to generate report."
 
     async def save_research_to_markdown(self, query: str, report: str, logs: List[str], filename: str = None) -> str:
@@ -319,7 +289,7 @@ class ResearchEngine:
 ## Generated On
 {asyncio.get_event_loop().time()}
 
-*This report was automatically generated using OpenDeepResearcher.*
+*This report was automatically generated using OpenDeepResearcher-API.*
 """
         
         try:
@@ -347,7 +317,7 @@ class ResearchEngine:
             logs.append("Generating initial search queries...")
             queries = await self.generate_search_queries(session, user_query)
             if not queries:
-                message = "OpenRouter API rate limit exceeded. Please try again later or upgrade to a paid plan."
+                message = "LLM provider rate limit exceeded. Please try again later or upgrade to a paid plan."
                 logger.error(message)
                 logs.append(message)
                 return f"Research failed: {message}", logs
