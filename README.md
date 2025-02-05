@@ -373,11 +373,9 @@ curl -X POST http://localhost:8000/api/research \
 ```
 
 Available Ollama models:
-- `llama2` - General purpose model
+- `llama3.2` - General purpose model
 - `mistral` - Powerful open-source model
-- `codellama` - Code-specialized model
-- `llama2-uncensored` - Less restricted version
-- `neural-chat` - Optimized for chat
+
 
 To use a different model, update `OLLAMA_MODEL` in your `.env` file and ensure you've pulled the model with `ollama pull model_name`.
 

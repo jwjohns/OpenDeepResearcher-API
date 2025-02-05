@@ -306,34 +306,48 @@ class ResearchEngine:
             logger.error(f"Error saving research to markdown: {str(e)}", exc_info=True)
             return ""
 
-    async def research(self, user_query: str, max_iterations: int = 10) -> Tuple[str, List[str]]:
+    async def research(
+        self,
+        user_query: str,
+        max_iterations: int = 10,
+        status_queue: Optional[asyncio.Queue] = None
+    ) -> Tuple[str, List[str]]:
         logs = []
         contexts = []
         all_queries = []
         
+        async def send_status(status_type: str, message: str, **kwargs):
+            if status_queue:
+                await status_queue.put({
+                    "type": status_type,
+                    "message": message,
+                    **kwargs
+                })
+            logs.append(message)
+            logger.info(message)
+        
         logger.info(f"Starting research for query: {user_query} (max iterations: {max_iterations})")
+        await send_status("start", f"Starting research: {user_query}")
+        
         async with aiohttp.ClientSession() as session:
             # Generate initial queries
-            logs.append("Generating initial search queries...")
+            await send_status("progress", "Generating initial search queries...")
             queries = await self.generate_search_queries(session, user_query)
             if not queries:
                 message = "LLM provider rate limit exceeded. Please try again later or upgrade to a paid plan."
-                logger.error(message)
-                logs.append(message)
+                await send_status("error", message)
                 return f"Research failed: {message}", logs
             
             all_queries.extend(queries)
-            logs.append(f"Initial queries: {queries}")
-            logger.info(f"Generated {len(queries)} initial queries")
+            await send_status("queries", "Generated initial queries", queries=queries)
             
             # Iterative research loop
             for iteration in range(max_iterations):
                 iteration_message = f"\n=== Iteration {iteration + 1} ==="
-                logs.append(iteration_message)
-                logger.info(iteration_message)
+                await send_status("iteration", iteration_message, iteration=iteration + 1)
                 
                 # Perform searches
-                logger.info("Executing search queries in parallel")
+                await send_status("progress", "Executing search queries in parallel")
                 search_tasks = [self.perform_search(session, q) for q in queries]
                 search_results = await asyncio.gather(*search_tasks)
                 
@@ -345,61 +359,57 @@ class ResearchEngine:
                         if link not in unique_links:
                             unique_links[link] = query_used
                 
-                log_message = f"Found {len(unique_links)} unique links."
-                logs.append(log_message)
-                logger.info(log_message)
+                await send_status("links", f"Found {len(unique_links)} unique links", count=len(unique_links))
                 
                 # Process each link
                 iteration_contexts = []
                 for link, search_query in unique_links.items():
-                    logs.append(f"Processing: {link}")
-                    logger.info(f"Processing link: {link}")
+                    await send_status("processing", f"Processing: {link}", url=link)
                     
                     # Fetch and evaluate content
                     content = await self.fetch_webpage_text(session, link)
                     if not content:
-                        logger.warning(f"No content retrieved from {link}")
+                        await send_status("warning", f"No content retrieved from {link}")
                         continue
                     
                     usefulness = await self.is_page_useful(session, user_query, content)
-                    logs.append(f"Page usefulness: {usefulness}")
+                    await send_status("evaluation", f"Page usefulness: {usefulness}", url=link, useful=usefulness=="Yes")
                     
                     if usefulness == "Yes":
                         if context := await self.extract_relevant_context(session, user_query, search_query, content):
                             iteration_contexts.append(context)
                             preview = f"Extracted context (preview): {context[:100]}..."
-                            logs.append(preview)
-                            logger.debug(preview)
+                            await send_status("context", preview, url=link)
                 
                 if iteration_contexts:
                     contexts.extend(iteration_contexts)
-                    log_message = f"Added {len(iteration_contexts)} new contexts."
-                    logs.append(log_message)
-                    logger.info(log_message)
+                    await send_status("progress", f"Added {len(iteration_contexts)} new contexts", count=len(iteration_contexts))
                 else:
-                    log_message = "No useful contexts found in this iteration."
-                    logs.append(log_message)
-                    logger.warning(log_message)
+                    await send_status("warning", "No useful contexts found in this iteration")
                 
                 # Check if more research is needed
                 queries = await self.get_new_search_queries(session, user_query, all_queries, contexts)
                 if not queries:
-                    log_message = "No more queries needed. Generating report..."
-                    logs.append(log_message)
-                    logger.info(log_message)
+                    await send_status("progress", "No more queries needed. Generating report...")
                     break
                 
                 all_queries.extend(queries)
-                log_message = f"New queries for next iteration: {queries}"
-                logs.append(log_message)
-                logger.info(log_message)
+                await send_status("queries", "New queries for next iteration", queries=queries)
             
             # Generate final report
-            logger.info("Generating final research report")
+            await send_status("progress", "Generating final research report")
             report = await self.generate_final_report(session, user_query, contexts)
             
             # Save research to markdown
             await self.save_research_to_markdown(user_query, report, logs)
             
             logger.info("Research completed successfully")
+            if status_queue:
+                await status_queue.put({
+                    "type": "complete",
+                    "message": "Research completed successfully",
+                    "report": report,
+                    "logs": logs
+                })
+            
             return report, logs 
