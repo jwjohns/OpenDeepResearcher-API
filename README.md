@@ -2,6 +2,12 @@
 
 A REST API service for conducting deep research on any topic using AI. This project is an adaptation of Matt Shumer's research notebook into a modular API service.
 
+## Requirements
+
+- Python 3.10
+- Virtual environment (recommended)
+- Ollama (optional, for local LLM support)
+
 ## Overview
 
 OpenDeepResearcher-API is a research assistant that:
@@ -102,21 +108,26 @@ sequenceDiagram
 
 ## Installation
 
-1. Clone the repository:
+1. Ensure you have Python 3.10 installed:
+```bash
+python --version  # Should show Python 3.10.x
+```
+
+2. Clone the repository:
 ```bash
 git clone https://github.com/yourusername/OpenDeepResearcher-API.git
 cd OpenDeepResearcher-API
 ```
 
-2. Create a Python virtual environment:
+3. Create a Python virtual environment:
 ```bash
-python -m venv venv-odr-310
+python -m venv venv-odr-310  # Specifically using Python 3.10
 source venv-odr-310/bin/activate  # On Unix/macOS
 # or
 .\venv-odr-310\Scripts\activate  # On Windows
 ```
 
-3. Install dependencies:
+4. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
