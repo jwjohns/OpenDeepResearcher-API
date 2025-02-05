@@ -435,3 +435,96 @@ This project is based on Justin Pinkney's research notebook implementation. The 
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## TODO and Roadmap
+
+### Planned Migrations
+1. **Content Extraction** - [In Progress]
+   - Migrate from Jina.ai to our own extraction stack
+   - See [JINA_MIGRATION.md](docs/JINA_MIGRATION.md) for detailed plan
+   - Implement multiple extraction methods (Trafilatura, Newspaper3k, BeautifulSoup)
+   - Add content caching for improved performance
+
+2. **Web Search** - [Planned]
+   - Migrate from SERPAPI to direct search implementations
+   - Support multiple search engines (Google, Bing, DuckDuckGo)
+   - Implement rate limiting and proxy rotation
+   - Add search result caching
+
+### Feature Enhancements
+1. **Response Formatting**
+   - Add support for multiple output formats (MD, PDF, HTML)
+   - Implement custom templates for research reports
+   - Add citation support and bibliography generation
+   - Include source credibility scoring
+
+2. **User Interface**
+   - Develop a web-based dashboard
+   - Add real-time research progress visualization
+   - Implement interactive report editing
+   - Add source material management
+
+3. **Research Quality**
+   - Implement fact-checking against multiple sources
+   - Add source credibility scoring
+   - Improve context relevance detection
+   - Enhance duplicate content detection
+
+4. **Performance Optimizations**
+   - Implement distributed processing for large research tasks
+   - Add result caching system
+   - Optimize memory usage during large operations
+   - Improve concurrent request handling
+
+### Infrastructure
+1. **Monitoring and Logging**
+   - Add detailed performance metrics
+   - Implement error tracking and reporting
+   - Add system health monitoring
+   - Set up automated alerts
+
+2. **Testing**
+   - Expand unit test coverage
+   - Add integration tests
+   - Implement performance benchmarks
+   - Add automated quality checks
+
+3. **Documentation**
+   - Add API reference documentation
+   - Create developer guides
+   - Add more code examples
+   - Create troubleshooting guides
+
+4. **Deployment**
+   - Add Docker support
+   - Create Kubernetes configurations
+   - Set up CI/CD pipelines
+   - Add automated deployment scripts
+
+### Security
+1. **Authentication and Authorization**
+   - Implement user authentication
+   - Add role-based access control
+   - Add API key management
+   - Implement rate limiting
+
+2. **Data Protection**
+   - Add data encryption at rest
+   - Implement secure credential storage
+   - Add audit logging
+   - Implement backup and recovery
+
+### Community Features
+1. **Collaboration**
+   - Add shared research projects
+   - Implement commenting system
+   - Add version control for reports
+   - Create research templates
+
+2. **Integration**
+   - Add webhook support
+   - Create plugin system
+   - Add export to various platforms
+   - Implement sharing features
+
+To contribute to any of these improvements, please check our [CONTRIBUTING.md](docs/CONTRIBUTING.md) guide.
