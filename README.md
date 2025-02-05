@@ -145,7 +145,7 @@ ANTHROPIC_API_KEY=your_anthropic_key
 
 # Ollama Settings (only needed if using ollama)
 OLLAMA_HOST=http://localhost:11434  # Default Ollama host
-OLLAMA_MODEL=llama2  # Default model
+OLLAMA_MODEL=llama3.2  # Default model
 ```
 
 ## Usage
@@ -308,7 +308,7 @@ OPENROUTER_MODEL=meta-llama/llama-3-8b-instruct:free
 ```env
 LLM_PROVIDER=openai
 OPENAI_API_KEY=your_key
-OPENAI_MODEL=gpt-3.5-turbo
+OPENAI_MODEL=o1
 ```
 
 ### Anthropic
@@ -322,7 +322,7 @@ ANTHROPIC_MODEL=claude-3-haiku-20240307
 ```env
 LLM_PROVIDER=ollama
 OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=llama2
+OLLAMA_MODEL=llama3.2
 ```
 
 ## Testing with Ollama Locally
