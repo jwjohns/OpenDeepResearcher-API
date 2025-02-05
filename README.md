@@ -430,7 +430,7 @@ flowchart TD
 
 ## Acknowledgments
 
-This project is based on Justin Pinkney's research notebook implementation. The original work has been adapted into a REST API service with additional features like multi-provider LLM support and parallel processing.
+This project is based on Matt Shumer's original OpenDeepResearcher implementation. The original work has been adapted into a REST API service with additional features like multi-provider LLM support, parallel processing, and real-time status updates.
 
 ## License
 
