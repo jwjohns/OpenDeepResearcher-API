@@ -343,7 +343,7 @@ ollama serve
 
 3. Pull your desired model (e.g., Llama 2):
 ```bash
-ollama pull llama2
+ollama pull llama3.2
 ```
 
 4. Configure your `.env` file for Ollama:
