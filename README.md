@@ -186,6 +186,115 @@ The streaming endpoint provides real-time updates on:
 - Report generation
 - Final results
 
+### Understanding Stream Updates
+
+The streaming endpoint returns Server-Sent Events (SSE) with the following structure:
+```json
+data: {
+    "type": "<update_type>",
+    "message": "<descriptive_message>",
+    // Additional data specific to the update type
+}
+```
+
+Status update types include:
+- `start`: Research initialization
+- `progress`: General progress updates
+- `queries`: Generated search queries
+- `iteration`: Start of a new research iteration
+- `links`: Number of unique links found
+- `processing`: Currently processing URL
+- `evaluation`: Content relevance evaluation
+- `context`: Extracted relevant context
+- `warning`: Processing warnings or issues
+- `error`: Error notifications
+- `complete`: Final research results
+
+Example stream output:
+```json
+data: {"type": "start", "message": "Starting research: What are the benefits of meditation?"}
+
+data: {"type": "progress", "message": "Generating initial search queries..."}
+
+data: {
+    "type": "queries",
+    "message": "Generated initial queries",
+    "queries": [
+        "benefits of meditation for stress relief",
+        "meditation and mental health",
+        "how meditation improves focus and productivity",
+        "meditation and its impact on anxiety"
+    ]
+}
+
+data: {"type": "iteration", "message": "=== Iteration 1 ===", "iteration": 1}
+
+data: {"type": "links", "message": "Found 30 unique links", "count": 30}
+
+data: {
+    "type": "processing",
+    "message": "Processing: https://example.com/article",
+    "url": "https://example.com/article"
+}
+
+data: {
+    "type": "evaluation",
+    "message": "Page usefulness: Yes",
+    "url": "https://example.com/article",
+    "useful": true
+}
+
+data: {
+    "type": "context",
+    "message": "Extracted context (preview): Research shows that meditation...",
+    "url": "https://example.com/article"
+}
+
+data: {
+    "type": "complete",
+    "message": "Research completed successfully",
+    "report": "Final research report...",
+    "logs": ["Log entry 1", "Log entry 2"]
+}
+```
+
+### Client-side Handling
+
+Example JavaScript code to handle the stream:
+```javascript
+const eventSource = new EventSource('/api/research/stream');
+
+eventSource.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    
+    switch(data.type) {
+        case 'start':
+            console.log('Research started:', data.message);
+            break;
+        case 'queries':
+            console.log('Search queries:', data.queries);
+            break;
+        case 'links':
+            console.log('Found links:', data.count);
+            break;
+        case 'evaluation':
+            console.log('Content evaluation:', data.message, data.useful);
+            break;
+        case 'complete':
+            console.log('Research complete:', data.report);
+            eventSource.close();
+            break;
+        default:
+            console.log('Update:', data.message);
+    }
+};
+
+eventSource.onerror = (error) => {
+    console.error('Stream error:', error);
+    eventSource.close();
+};
+```
+
 ## LLM Provider Configuration
 
 ### OpenRouter (Default)
