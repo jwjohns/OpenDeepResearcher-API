@@ -289,7 +289,7 @@ class ResearchEngine:
 ## Generated On
 {asyncio.get_event_loop().time()}
 
-*This report was automatically generated using OpenDeepResearcher.*
+*This report was automatically generated using OpenDeepResearcher-API.*
 """
         
         try:
