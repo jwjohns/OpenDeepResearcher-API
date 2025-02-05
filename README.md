@@ -12,6 +12,80 @@ OpenDeepResearcher-API is a research assistant that:
 - Synthesizes findings into comprehensive reports
 - Provides real-time status updates during research
 
+### System Architecture
+
+```mermaid
+graph TB
+    Client[Client Application]
+    API[FastAPI Server]
+    RE[Research Engine]
+    LLM[LLM Provider]
+    Search[SERPAPI]
+    Content[Jina AI]
+    DB[(Research Outputs)]
+    
+    Client -->|HTTP/SSE| API
+    API -->|Research Request| RE
+    RE -->|Query Generation| LLM
+    RE -->|Web Search| Search
+    RE -->|Content Extraction| Content
+    RE -->|Text Generation| LLM
+    RE -->|Save Report| DB
+    
+    subgraph LLM Providers
+        LLM -->|Default| OpenRouter
+        LLM -->|Option 1| OpenAI
+        LLM -->|Option 2| Anthropic
+        LLM -->|Option 3| Ollama
+    end
+```
+
+### Research Process Flow
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant A as API
+    participant R as ResearchEngine
+    participant L as LLM
+    participant S as Search
+    participant J as JinaAI
+    
+    C->>A: POST /api/research/stream
+    activate A
+    A->>R: Start Research Process
+    activate R
+    
+    R->>L: Generate Search Queries
+    L-->>R: Search Queries
+    
+    par Parallel Search
+        R->>S: Execute Query 1
+        R->>S: Execute Query 2
+        R->>S: Execute Query 3
+        R->>S: Execute Query 4
+    end
+    
+    S-->>R: Search Results
+    
+    loop For Each URL
+        R->>J: Extract Content
+        J-->>R: Page Content
+        R->>L: Evaluate Relevance
+        L-->>R: Relevance Score
+        R->>L: Extract Context
+        L-->>R: Relevant Context
+    end
+    
+    R->>L: Generate Report
+    L-->>R: Final Report
+    
+    R-->>A: Research Complete
+    deactivate R
+    A-->>C: Stream Updates & Report
+    deactivate A
+```
+
 ## Features
 
 - **Multiple LLM Provider Support**:
@@ -200,21 +274,51 @@ To use a different model, update `OLLAMA_MODEL` in your `.env` file and ensure y
 
 ## Development
 
-The project structure:
+### Project Structure
+
+```mermaid
+graph TD
+    Root[OpenDeepResearcher-API] --> App[app/]
+    Root --> Outputs[research_outputs/]
+    Root --> Config[Configuration Files]
+    Root --> Docs[Documentation]
+    
+    App --> Init[__init__.py<br/>Version Info]
+    App --> Main[main.py<br/>FastAPI App]
+    App --> Researcher[researcher.py<br/>Core Engine]
+    App --> LLM[llm_providers.py<br/>LLM Integration]
+    App --> Conf[config.py<br/>Settings]
+    
+    Config --> Env[.env<br/>Environment Variables]
+    Config --> EnvExample[.env.example<br/>Template]
+    Config --> Reqs[requirements.txt<br/>Dependencies]
+    
+    Docs --> README[README.md<br/>Documentation]
+    Docs --> License[LICENSE<br/>MIT License]
+    
+    Outputs --> Reports[Research Reports<br/>.md Files]
 ```
-OpenDeepResearcher-API/
-├── app/
-│   ├── __init__.py      # Version and package info
-│   ├── main.py          # FastAPI application and endpoints
-│   ├── config.py        # Configuration management
-│   ├── researcher.py    # Core research engine with streaming support
-│   └── llm_providers.py # LLM provider implementations
-├── research_outputs/    # Generated research reports
-├── requirements.txt     # Python dependencies
-├── .env                # Environment variables (create from .env.example)
-├── .env.example        # Example environment configuration
-├── LICENSE            # MIT License
-└── README.md          # Project documentation
+
+### Data Flow
+
+```mermaid
+flowchart TD
+    Query[User Query] --> Engine[Research Engine]
+    
+    Engine --> QueryGen[Query Generation]
+    QueryGen --> Search[Web Search]
+    
+    Search --> URLs[URL Collection]
+    URLs --> Content[Content Extraction]
+    
+    Content --> Relevance[Relevance Check]
+    Relevance --> Context[Context Extraction]
+    
+    Context --> Analysis[Information Analysis]
+    Analysis --> Report[Report Generation]
+    
+    Report --> Save[Save to Markdown]
+    Report --> Stream[Stream to Client]
 ```
 
 ## Acknowledgments
