@@ -10,6 +10,7 @@ OpenDeepResearcher-API is a research assistant that:
 - Evaluates content relevance
 - Extracts key information
 - Synthesizes findings into comprehensive reports
+- Provides real-time status updates during research
 
 ## Features
 
@@ -22,6 +23,7 @@ OpenDeepResearcher-API is a research assistant that:
 - **Parallel Web Search**: Uses SERPAPI for efficient web searching
 - **Content Processing**: Uses Jina AI for webpage content extraction
 - **Automated Research Process**: Iteratively explores topics until sufficient information is gathered
+- **Real-time Status Updates**: Streams research progress using Server-Sent Events (SSE)
 - **Markdown Report Generation**: Saves research findings with full process logs
 
 ## Installation
@@ -82,15 +84,33 @@ uvicorn app.main:app --reload
 2. The API will be available at `http://localhost:8000`
 
 3. API Endpoints:
-   - POST `/api/research`: Conduct research on a topic
+   - POST `/api/research`: Traditional synchronous research endpoint
+   - POST `/api/research/stream`: Stream research progress in real-time using SSE
    - GET `/api/health`: Check API health
 
-Example research request:
+Example research request (traditional):
 ```bash
 curl -X POST http://localhost:8000/api/research \
   -H "Content-Type: application/json" \
   -d '{"query": "Impact of quantum computing on cryptography", "max_iterations": 5}'
 ```
+
+Example streaming request (real-time updates):
+```bash
+curl -N -H "Accept: text/event-stream" \
+  -H "Content-Type: application/json" \
+  -X POST http://localhost:8000/api/research/stream \
+  -d '{"query": "Impact of quantum computing on cryptography", "max_iterations": 5}'
+```
+
+The streaming endpoint provides real-time updates on:
+- Research initialization
+- Query generation
+- Search execution
+- Content processing
+- Context extraction
+- Report generation
+- Final results
 
 ## LLM Provider Configuration
 
@@ -185,9 +205,9 @@ The project structure:
 OpenDeepResearcher-API/
 ├── app/
 │   ├── __init__.py      # Version and package info
-│   ├── main.py          # FastAPI application
+│   ├── main.py          # FastAPI application and endpoints
 │   ├── config.py        # Configuration management
-│   ├── researcher.py    # Core research engine
+│   ├── researcher.py    # Core research engine with streaming support
 │   └── llm_providers.py # LLM provider implementations
 ├── research_outputs/    # Generated research reports
 ├── requirements.txt     # Python dependencies
