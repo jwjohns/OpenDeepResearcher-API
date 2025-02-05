@@ -1,27 +1,30 @@
 # OpenDeepResearcher-API
 
-A FastAPI implementation of OpenDeepResearcher that provides a REST API for automated web research using LLMs. This project is an API adaptation of [Justin Pinkney's original OpenDeepResearcher](https://github.com/justinpinkney/OpenDeepResearcher).
+A REST API service for conducting deep research on any topic using AI. This project is an adaptation of Justin Pinkney's research notebook into a modular API service.
 
 ## Overview
 
-OpenDeepResearcher-API transforms the original notebook-based research tool into a REST API service that:
-- Generates intelligent search queries based on your research question
-- Searches the web for relevant information
-- Evaluates and extracts relevant content from web pages
-- Generates a research report
-- Saves research outputs and logs for transparency
+OpenDeepResearcher-API is a research assistant that:
+- Generates intelligent search queries
+- Performs parallel web searches
+- Evaluates content relevance
+- Extracts key information
+- Synthesizes findings into comprehensive reports
 
 ## Features
 
-- **Intelligent Query Generation**: Uses LLMs to create targeted search queries
-- **Parallel Web Search**: Efficiently searches multiple queries simultaneously
-- **Content Evaluation**: Evaluates webpage relevance
-- **Context Extraction**: Extracts relevant information from web pages
-- **Report Generation**: Creates research reports from gathered information
-- **Detailed Logging**: Maintains logs of the research process
-- **Markdown Output**: Saves research results in formatted markdown files
+- **Multiple LLM Provider Support**:
+  - OpenRouter (default)
+  - OpenAI
+  - Anthropic
+  - Ollama (local)
+- **Intelligent Query Generation**: Creates targeted search queries to explore different aspects of your topic
+- **Parallel Web Search**: Uses SERPAPI for efficient web searching
+- **Content Processing**: Uses Jina AI for webpage content extraction
+- **Automated Research Process**: Iteratively explores topics until sufficient information is gathered
+- **Markdown Report Generation**: Saves research findings with full process logs
 
-## Setup
+## Installation
 
 1. Clone the repository:
 ```bash
@@ -29,7 +32,7 @@ git clone https://github.com/yourusername/OpenDeepResearcher-API.git
 cd OpenDeepResearcher-API
 ```
 
-2. Create a virtual environment:
+2. Create a Python virtual environment:
 ```bash
 python -m venv venv-odr-310
 source venv-odr-310/bin/activate  # On Unix/macOS
@@ -42,57 +45,162 @@ source venv-odr-310/bin/activate  # On Unix/macOS
 pip install -r requirements.txt
 ```
 
-4. Create a `.env` file with your API keys:
+## Configuration
+
+1. Copy the example environment file:
+```bash
+cp .env.example .env
 ```
-OPENROUTER_API_KEY=your_openrouter_key
+
+2. Configure your environment variables in `.env`:
+
+```env
+# Required API Keys
 SERPAPI_API_KEY=your_serpapi_key
 JINA_API_KEY=your_jina_key
+
+# LLM Provider (choose one)
+LLM_PROVIDER=openrouter  # Options: openrouter, openai, anthropic, ollama
+
+# Provider-specific API Keys (only needed for chosen provider)
+OPENROUTER_API_KEY=your_openrouter_key
+OPENAI_API_KEY=your_openai_key
+ANTHROPIC_API_KEY=your_anthropic_key
+
+# Ollama Settings (only needed if using ollama)
+OLLAMA_HOST=http://localhost:11434  # Default Ollama host
+OLLAMA_MODEL=llama2  # Default model
 ```
 
 ## Usage
 
-1. Start the server:
+1. Start the API server:
 ```bash
-python run.py
+uvicorn app.main:app --reload
 ```
 
-2. Make a research request:
+2. The API will be available at `http://localhost:8000`
+
+3. API Endpoints:
+   - POST `/api/research`: Conduct research on a topic
+   - GET `/api/health`: Check API health
+
+Example research request:
 ```bash
-curl -X POST http://localhost:8080/api/research \
+curl -X POST http://localhost:8000/api/research \
   -H "Content-Type: application/json" \
-  -d '{"query": "Your research question here", "max_iterations": 1}'
+  -d '{"query": "Impact of quantum computing on cryptography", "max_iterations": 5}'
 ```
 
-The research results will be:
-- Returned in the API response
-- Saved as a markdown file in the `research_outputs` directory
+## LLM Provider Configuration
 
-## Project Structure
+### OpenRouter (Default)
+```env
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=your_key
+OPENROUTER_MODEL=meta-llama/llama-3-8b-instruct:free
+```
 
+### OpenAI
+```env
+LLM_PROVIDER=openai
+OPENAI_API_KEY=your_key
+OPENAI_MODEL=gpt-3.5-turbo
+```
+
+### Anthropic
+```env
+LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=your_key
+ANTHROPIC_MODEL=claude-3-haiku-20240307
+```
+
+### Ollama (Local)
+```env
+LLM_PROVIDER=ollama
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=llama2
+```
+
+## Testing with Ollama Locally
+
+1. Install Ollama:
+```bash
+# macOS or Linux
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Windows
+# Download from https://ollama.com/download
+```
+
+2. Start the Ollama service:
+```bash
+ollama serve
+```
+
+3. Pull your desired model (e.g., Llama 2):
+```bash
+ollama pull llama2
+```
+
+4. Configure your `.env` file for Ollama:
+```env
+# Required API Keys (still needed for web search and content extraction)
+SERPAPI_API_KEY=your_serpapi_key
+JINA_API_KEY=your_jina_key
+
+# Set Ollama as the LLM provider
+LLM_PROVIDER=ollama
+
+# Ollama Configuration
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=llama2
+```
+
+5. Start the API server:
+```bash
+uvicorn app.main:app --reload
+```
+
+6. Test the research endpoint:
+```bash
+curl -X POST http://localhost:8000/api/research \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What are the main features of the Llama 2 model?", "max_iterations": 2}'
+```
+
+Available Ollama models:
+- `llama2` - General purpose model
+- `mistral` - Powerful open-source model
+- `codellama` - Code-specialized model
+- `llama2-uncensored` - Less restricted version
+- `neural-chat` - Optimized for chat
+
+To use a different model, update `OLLAMA_MODEL` in your `.env` file and ensure you've pulled the model with `ollama pull model_name`.
+
+## Development
+
+The project structure:
 ```
 OpenDeepResearcher-API/
 ├── app/
-│   ├── __init__.py
-│   ├── config.py        # Configuration and environment variables
-│   ├── main.py         # FastAPI application
-│   └── researcher.py    # Core research engine
+│   ├── __init__.py      # Version and package info
+│   ├── main.py          # FastAPI application
+│   ├── config.py        # Configuration management
+│   ├── researcher.py    # Core research engine
+│   └── llm_providers.py # LLM provider implementations
 ├── research_outputs/    # Generated research reports
-├── .env                # API keys and configuration
-├── .env.example        # Example environment file
-├── requirements.txt    # Python dependencies
-└── run.py             # Server startup script
+├── requirements.txt     # Python dependencies
+├── .env                # Environment variables (create from .env.example)
+├── .env.example        # Example environment configuration
+├── LICENSE            # MIT License
+└── README.md          # Project documentation
 ```
-
-## API Keys Required
-
-- **OpenRouter**: For LLM access (https://openrouter.ai/)
-- **SerpAPI**: For web search (https://serpapi.com/)
-- **Jina**: For webpage content extraction (https://jina.ai/)
 
 ## Acknowledgments
 
-This project is a REST API implementation of Justin Pinkney's original OpenDeepResearcher notebook. While maintaining the core research capabilities of the original work, this version adds API endpoints, error handling, logging, and markdown output generation. This is an experimental project and may need additional work for production use.
+This project is based on Justin Pinkney's research notebook implementation. The original work has been adapted into a REST API service with additional features like multi-provider LLM support and parallel processing.
 
 ## License
 
-MIT License - See LICENSE file for details
+This project is licensed under the MIT License - see the LICENSE file for details.
