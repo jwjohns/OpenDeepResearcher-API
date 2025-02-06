@@ -106,6 +106,47 @@ sequenceDiagram
 - **Real-time Status Updates**: Streams research progress using Server-Sent Events (SSE)
 - **Markdown Report Generation**: Saves research findings with full process logs
 
+## User Interface
+
+The application provides a modern, intuitive interface for conducting deep research:
+
+### Research Form
+![Research Form](docs/images/research-form.png)
+The main research form allows you to:
+- Enter your research query
+- Configure research depth (number of iterations)
+- Start the research process with a single click
+
+### Research Progress
+![Research Progress](docs/images/research-progress.png)
+Real-time progress tracking shows:
+- Current research stage
+- Generated search queries
+- Processing status
+- Found links and their relevance
+- Iteration progress
+
+The progress view includes:
+- A visual timeline of the research process
+- Color-coded status indicators
+- Progress bars for overall completion
+- Detailed logs of each step
+
+### Query Generation
+![Query Generation](docs/images/query-generation.png)
+The system generates intelligent search queries like:
+- "ARTIFICIAL INTELLIGENCE IN INSURANCE CLAIMS PROCESSING"
+- "INSURANCE COMPANY DENIAL RATE TRENDS WITH AI"
+- "IMPACT OF MACHINE LEARNING ON INSURANCE UNDERWRITING DECISIONS"
+- "EFFECTIVENESS OF NATURAL LANGUAGE PROCESSING IN INSURANCE DENIAL APPEALS"
+
+### Status Updates
+The interface provides clear feedback with:
+- Success/error notifications
+- Connection status indicators
+- Progress animations
+- Detailed error messages when needed
+
 ## Installation
 
 1. Ensure you have Python 3.10 installed:
