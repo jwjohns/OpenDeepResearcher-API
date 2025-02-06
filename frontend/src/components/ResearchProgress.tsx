@@ -1,7 +1,7 @@
-import { Timeline, Text, Paper, Title, Badge, Stack, rem, Progress, Group, ThemeIcon } from '@mantine/core';
+import { Timeline, Text, Paper, Title, Badge, Stack, rem, Progress, Group, ThemeIcon, ScrollArea } from '@mantine/core';
 import { IconSearch, IconCheck, IconX, IconLink, IconBrain, IconLoader2 } from '@tabler/icons-react';
 import { ResearchUpdate } from '../api/client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 interface ResearchProgressProps {
   updates: ResearchUpdate[];
@@ -9,16 +9,63 @@ interface ResearchProgressProps {
 
 export function ResearchProgress({ updates }: ResearchProgressProps) {
   const [progress, setProgress] = useState(0);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const latestUpdate = updates[updates.length - 1];
 
   useEffect(() => {
+    // Calculate progress based on research stages
     if (latestUpdate?.type === 'complete') {
       setProgress(100);
+    } else if (latestUpdate?.type === 'error') {
+      setProgress(0);
     } else if (latestUpdate?.iteration) {
-      // Assuming max 10 iterations, each iteration is 10%
-      setProgress(Math.min((latestUpdate.iteration * 10), 90));
+      // Each iteration contributes to progress
+      const iterationProgress = Math.min((latestUpdate.iteration * 10), 90);
+      
+      // Add extra progress based on the stage within the iteration
+      let stageBonus = 0;
+      switch (latestUpdate.type) {
+        case 'queries':
+          stageBonus = 2;
+          break;
+        case 'links':
+          stageBonus = 4;
+          break;
+        case 'processing':
+          stageBonus = 6;
+          break;
+        case 'evaluation':
+          stageBonus = 8;
+          break;
+        case 'context':
+          stageBonus = 9;
+          break;
+      }
+      
+      setProgress(Math.min(iterationProgress + stageBonus, 90));
+    } else {
+      // Initial stages
+      switch (latestUpdate?.type) {
+        case 'start':
+          setProgress(5);
+          break;
+        case 'queries':
+          setProgress(10);
+          break;
+        case 'progress':
+          setProgress(15);
+          break;
+      }
     }
-  }, [latestUpdate]);
+
+    // Auto-scroll to bottom when new updates arrive
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTo({
+        top: scrollAreaRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }, [latestUpdate, updates]);
 
   const getStatusIcon = (type: string) => {
     switch (type) {
@@ -75,86 +122,100 @@ export function ResearchProgress({ updates }: ResearchProgressProps) {
           />
         </div>
 
-        <Timeline 
-          active={updates.length - 1} 
-          bulletSize={32}
-          lineWidth={2}
+        <ScrollArea 
+          h={400} 
+          offsetScrollbars 
+          scrollbarSize={8}
+          viewportRef={scrollAreaRef}
           styles={{
-            item: {
-              paddingLeft: rem(32),
-            }
+            root: { 
+              border: '1px solid var(--mantine-color-gray-3)',
+              borderRadius: 'var(--mantine-radius-md)'
+            },
+            viewport: { padding: '1rem' }
           }}
         >
-          {updates.map((update, index) => (
-            <Timeline.Item
-              key={index}
-              bullet={
-                <ThemeIcon 
-                  size={32} 
-                  radius="xl"
-                  color={getStatusColor(update.type, update.useful)}
-                  variant="light"
-                >
-                  {getStatusIcon(update.type)}
-                </ThemeIcon>
+          <Timeline 
+            active={updates.length - 1} 
+            bulletSize={32}
+            lineWidth={2}
+            styles={{
+              item: {
+                paddingLeft: rem(32),
               }
-              title={
-                <Group gap="xs" mb={4}>
-                  <Text size="lg" fw={600}>
-                    {update.type.charAt(0).toUpperCase() + update.type.slice(1)}
-                  </Text>
-                  {update.iteration && 
-                    <Badge 
-                      variant="light"
-                      size="lg"
-                    >
-                      Iteration {update.iteration}
-                    </Badge>
-                  }
-                </Group>
-              }
-            >
-              <Text c="dimmed" size="sm" mb={update.queries || update.url ? 'xs' : 0}>
-                {update.message}
-              </Text>
-              
-              {update.queries && (
-                <Text size="sm" mb="xs">
-                  <Text span fw={500}>Queries: </Text>
-                  {update.queries.map((query, i) => (
-                    <Badge 
-                      key={i}
-                      variant="dot"
-                      size="sm"
-                      mr={4}
-                      style={{ fontWeight: 'normal' }}
-                    >
-                      {query}
-                    </Badge>
-                  ))}
+            }}
+          >
+            {updates.map((update, index) => (
+              <Timeline.Item
+                key={index}
+                bullet={
+                  <ThemeIcon 
+                    size={32} 
+                    radius="xl"
+                    color={getStatusColor(update.type, update.useful)}
+                    variant="light"
+                  >
+                    {getStatusIcon(update.type)}
+                  </ThemeIcon>
+                }
+                title={
+                  <Group gap="xs" mb={4}>
+                    <Text size="lg" fw={600}>
+                      {update.type.charAt(0).toUpperCase() + update.type.slice(1)}
+                    </Text>
+                    {update.iteration && 
+                      <Badge 
+                        variant="light"
+                        size="lg"
+                      >
+                        Iteration {update.iteration}
+                      </Badge>
+                    }
+                  </Group>
+                }
+              >
+                <Text c="dimmed" size="sm" mb={update.queries || update.url ? 'xs' : 0}>
+                  {update.message}
                 </Text>
-              )}
-              
-              {update.url && (
-                <Group gap="xs">
-                  <IconLink size={16} style={{ color: 'var(--mantine-color-gray-6)' }} />
-                  <Text size="sm" style={{ wordBreak: 'break-word' }} component="a" href={update.url} target="_blank">
-                    {update.url}
+                
+                {update.queries && (
+                  <Text size="sm" mb="xs">
+                    <Text span fw={500}>Queries: </Text>
+                    {update.queries.map((query, i) => (
+                      <Badge 
+                        key={i}
+                        variant="dot"
+                        size="sm"
+                        mr={4}
+                        style={{ fontWeight: 'normal' }}
+                      >
+                        {query}
+                      </Badge>
+                    ))}
                   </Text>
-                  {update.useful !== undefined && (
-                    <Badge 
-                      variant="light"
-                      color={update.useful ? 'teal' : 'red'}
-                      size="sm"
-                    >
-                      {update.useful ? 'Useful' : 'Not Useful'}
-                    </Badge>
-                  )}
-                </Group>
-              )}
-            </Timeline.Item>
-          ))}
-        </Timeline>
+                )}
+                
+                {update.url && (
+                  <Group gap="xs">
+                    <IconLink size={16} style={{ color: 'var(--mantine-color-gray-6)' }} />
+                    <Text size="sm" style={{ wordBreak: 'break-word' }} component="a" href={update.url} target="_blank">
+                      {update.url}
+                    </Text>
+                    {update.useful !== undefined && (
+                      <Badge 
+                        variant="light"
+                        color={update.useful ? 'teal' : 'red'}
+                        size="sm"
+                      >
+                        {update.useful ? 'Useful' : 'Not Useful'}
+                      </Badge>
+                    )}
+                  </Group>
+                )}
+              </Timeline.Item>
+            ))}
+          </Timeline>
+        </ScrollArea>
       </Stack>
     </Paper>
   );

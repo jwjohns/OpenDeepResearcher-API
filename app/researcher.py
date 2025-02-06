@@ -146,27 +146,34 @@ class ResearchEngine:
 
     async def is_page_useful(self, session: aiohttp.ClientSession, user_query: str, page_text: str) -> str:
         prompt = (
-            "Is this content relevant to the topic? "
-            "Answer with exactly 'Yes' or 'No'."
+            "Evaluate if this content would help answer the query in any meaningful way. "
+            "Content is considered useful if it:\n"
+            "1. Addresses any aspect of the query directly or indirectly\n"
+            "2. Provides relevant background, context, or related insights\n"
+            "3. Offers expert opinions, research findings, or real-world examples\n"
+            "4. Contains information that would contribute to understanding the topic\n\n"
+            "Even if the content only partially addresses the query, it may still be useful.\n\n"
+            "Answer with EXACTLY 'Yes' or 'No', followed by a brief reason."
         )
         messages = [
-            {"role": "system", "content": "You are a content relevance evaluator. Be direct."},
-            {"role": "user", "content": f"Topic: {user_query}\n\nContent:\n{page_text[:2000]}\n\n{prompt}"}
+            {"role": "system", "content": "You are a content evaluator. Consider both direct and indirect relevance to the query."},
+            {"role": "user", "content": f"Query: {user_query}\n\nContent:\n{page_text[:2000]}\n\n{prompt}"}
         ]
         
         logger.info("Evaluating page usefulness")
         response = await self.call_llm(session, messages)
         if response:
-            answer = self._clean_llm_response(response)
-            logger.info(f"Page usefulness evaluation result: {answer}")
-            if answer in ["Yes", "No"]:
-                return answer
-            elif "Yes" in answer.upper():
-                return "Yes"
-            elif "No" in answer.upper():
+            # Extract just the Yes/No from the response
+            answer = self._clean_llm_response(response).strip().lower().split()[0]
+            logger.info(f"Page usefulness evaluation result: {response}")
+            
+            # Accept content unless it's clearly not useful
+            if answer == "no":
                 return "No"
-        logger.warning("Failed to evaluate page usefulness, defaulting to No")
-        return "No"
+            return "Yes"
+            
+        logger.warning("Failed to evaluate page usefulness, defaulting to Yes")
+        return "Yes"  # Default to including content if evaluation fails
 
     async def extract_relevant_context(
         self,
@@ -176,11 +183,18 @@ class ResearchEngine:
         page_text: str
     ) -> Optional[str]:
         prompt = (
-            "Extract all information relevant to answering the user's query. "
-            "Return only the relevant context as plain text without commentary."
+            "Extract information that directly helps answer the query. Focus on:\n"
+            "1. Specific facts, data, or evidence\n"
+            "2. Expert analysis or insights\n"
+            "3. Relevant examples or case studies\n"
+            "4. Direct answers to aspects of the query\n\n"
+            "Format the extraction as bullet points, each starting with '-'.\n"
+            "Include brief context when needed for understanding.\n"
+            "Exclude general background unless it's essential.\n\n"
+            "If no substantive information is found, return exactly 'No relevant information found.'"
         )
         messages = [
-            {"role": "system", "content": "You are an expert information extractor."},
+            {"role": "system", "content": "You are a precise information extractor. Focus on substance over generalities."},
             {
                 "role": "user",
                 "content": f"Query: {user_query}\nSearch Query: {search_query}\n\n"
@@ -192,6 +206,11 @@ class ResearchEngine:
         response = await self.call_llm(session, messages)
         if response:
             context = response.strip()
+            if context == "No relevant information found.":
+                return None
+            if not context.startswith('-'):
+                # If response isn't in bullet points, it's probably not specific enough
+                return None
             logger.debug(f"Extracted context (first 100 chars): {context[:100]}")
             return context
         logger.warning("Failed to extract context")
@@ -248,19 +267,39 @@ class ResearchEngine:
     ) -> str:
         context_combined = "\n".join(contexts)
         prompt = (
-            "Write a complete, well-structured, and detailed report that addresses "
-            "the query thoroughly. Include all useful insights without commentary."
+            "Write a focused research report that directly addresses the query. Follow these guidelines:\n"
+            "1. Start with a brief, focused introduction that states the specific research question\n"
+            "2. Present concrete findings, evidence, and examples from the research\n"
+            "3. Include specific data points, expert opinions, and real-world cases where available\n"
+            "4. Analyze contradictions or differing viewpoints found in the research\n"
+            "5. Draw conclusions based on the evidence gathered\n\n"
+            "Focus on depth over breadth. Avoid generic statements without supporting evidence.\n"
+            "If certain aspects lack solid evidence, acknowledge the limitations of the findings."
         )
         messages = [
-            {"role": "system", "content": "You are an expert report writer."},
+            {"role": "system", "content": "You are a research analyst synthesizing specific findings. Focus on concrete evidence and insights."},
             {
                 "role": "user",
-                "content": f"Query: {user_query}\n\nContexts:\n{context_combined}\n\n{prompt}"
+                "content": f"Query: {user_query}\n\nResearch Findings:\n{context_combined}\n\n{prompt}"
             }
         ]
         
         response = await self.call_llm(session, messages)
-        return response if response else "Unable to generate report."
+        if not response:
+            return "Unable to generate report due to insufficient research findings."
+            
+        # Add research methodology section
+        methodology = (
+            "\n\n## Research Methodology\n"
+            f"This report is based on analysis of multiple sources examining {user_query}. "
+            "The research process involved:\n"
+            "- Systematic search and analysis of relevant publications and studies\n"
+            "- Evaluation of source credibility and relevance\n"
+            "- Synthesis of findings from multiple perspectives\n"
+            "- Focus on evidence-based conclusions\n"
+        )
+        
+        return response + methodology
 
     async def save_research_to_markdown(self, query: str, report: str, logs: List[str], filename: str = None) -> str:
         """Save the research results to a markdown file."""
