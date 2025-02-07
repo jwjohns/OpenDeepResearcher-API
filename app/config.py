@@ -11,8 +11,12 @@ JINA_API_KEY = os.getenv("JINA_API_KEY")
 
 class Settings(BaseSettings):
     # Required API Keys
-    serpapi_api_key: str
+    serpapi_api_key: Optional[str] = None
     jina_api_key: str
+    
+    # Search Provider Configuration
+    search_provider: str = "ddg"  # Options: serpapi, ddg, bing
+    bing_api_key: Optional[str] = None
     
     # LLM Provider Configuration
     llm_provider: str = "openrouter"
@@ -23,7 +27,7 @@ class Settings(BaseSettings):
     
     # OpenAI Configuration
     openai_api_key: Optional[str] = None
-    openai_model: str = "gpt-3.5-turbo"
+    openai_model: str = "o1"  # Using O1 as default model
     
     # Anthropic Configuration
     anthropic_api_key: Optional[str] = None

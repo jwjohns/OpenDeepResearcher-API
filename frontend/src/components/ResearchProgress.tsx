@@ -9,63 +9,125 @@ interface ResearchProgressProps {
 
 export function ResearchProgress({ updates }: ResearchProgressProps) {
   const [progress, setProgress] = useState(0);
+  const [prevProgress, setPrevProgress] = useState(0);
+  const [urlsInCurrentIteration, setUrlsInCurrentIteration] = useState(0);
+  const [processedUrls, setProcessedUrls] = useState(0);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const latestUpdate = updates[updates.length - 1];
+  const progressTimeout = useRef<number>();
+
+  // Track URLs and iterations
+  useEffect(() => {
+    if (!latestUpdate) return;
+
+    if (latestUpdate.type === 'links' && latestUpdate.count) {
+      setUrlsInCurrentIteration(latestUpdate.count);
+      setProcessedUrls(0);
+    } else if (latestUpdate.type === 'processing' && latestUpdate.url) {
+      setProcessedUrls(prev => prev + 1);
+    }
+  }, [latestUpdate]);
 
   useEffect(() => {
-    // Calculate progress based on research stages
+    // Calculate target progress based on research stages
+    let targetProgress = 0;
+    
     if (latestUpdate?.type === 'complete') {
-      setProgress(100);
+      targetProgress = 100;
     } else if (latestUpdate?.type === 'error') {
-      setProgress(0);
+      targetProgress = 0;
     } else if (latestUpdate?.iteration) {
-      // Each iteration contributes to progress
-      const iterationProgress = Math.min((latestUpdate.iteration * 10), 90);
+      // Base progress from iteration (max 80% for iterations)
+      const iterationBase = (latestUpdate.iteration * 8);
       
-      // Add extra progress based on the stage within the iteration
-      let stageBonus = 0;
+      // Calculate progress within current iteration
+      let iterationProgress = 0;
+      if (urlsInCurrentIteration > 0) {
+        // Each URL processing contributes to the iteration progress
+        const urlProgress = (processedUrls / urlsInCurrentIteration) * 10;
+        iterationProgress = Math.min(urlProgress, 10);
+      }
+
+      // Add stage-specific progress
+      let stageProgress = 0;
       switch (latestUpdate.type) {
         case 'queries':
-          stageBonus = 2;
+          stageProgress = 1;
           break;
         case 'links':
-          stageBonus = 4;
+          stageProgress = 2;
           break;
         case 'processing':
-          stageBonus = 6;
+          stageProgress = iterationProgress;
           break;
         case 'evaluation':
-          stageBonus = 8;
+          stageProgress = iterationProgress;
           break;
         case 'context':
-          stageBonus = 9;
+          stageProgress = iterationProgress + 1;
           break;
       }
       
-      setProgress(Math.min(iterationProgress + stageBonus, 90));
+      targetProgress = Math.min(iterationBase + stageProgress, 85);
     } else {
       // Initial stages
       switch (latestUpdate?.type) {
         case 'start':
-          setProgress(5);
+          targetProgress = 5;
           break;
         case 'queries':
-          setProgress(10);
+          targetProgress = 8;
           break;
         case 'progress':
-          setProgress(15);
+          targetProgress = 10;
           break;
       }
     }
 
-    // Auto-scroll to bottom when new updates arrive
+    // Only increase progress, never decrease (unless error/complete)
+    if (latestUpdate?.type !== 'error' && targetProgress < prevProgress) {
+      targetProgress = prevProgress;
+    }
+
+    // Smoothly animate to target progress
+    if (progressTimeout.current) {
+      clearTimeout(progressTimeout.current);
+    }
+
+    const step = () => {
+      setProgress(current => {
+        const next = current < targetProgress 
+          ? Math.min(current + 1, targetProgress)
+          : Math.max(current - 1, targetProgress);
+        
+        if (next !== targetProgress) {
+          progressTimeout.current = setTimeout(step, 50);
+        } else {
+          setPrevProgress(next);
+        }
+        
+        return next;
+      });
+    };
+
+    step();
+
+    return () => {
+      if (progressTimeout.current) {
+        clearTimeout(progressTimeout.current);
+      }
+    };
+  }, [latestUpdate, prevProgress, urlsInCurrentIteration, processedUrls]);
+
+  // Auto-scroll effect
+  useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTo({
         top: scrollAreaRef.current.scrollHeight,
         behavior: 'smooth'
       });
     }
-  }, [latestUpdate, updates]);
+  }, [updates]);
 
   const getStatusIcon = (type: string) => {
     switch (type) {
@@ -116,7 +178,7 @@ export function ResearchProgress({ updates }: ResearchProgressProps) {
             value={progress} 
             size="lg" 
             radius="xl"
-            color={getStatusColor(latestUpdate?.type || 'start')}
+            color={latestUpdate?.type === 'complete' ? 'teal' : 'blue'}
             striped
             animated={progress < 100}
           />

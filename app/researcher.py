@@ -5,6 +5,7 @@ import json
 import logging
 import os
 from .llm_providers import get_llm_provider, LLMProvider
+from .search_providers import get_search_provider
 
 # Configure logging
 logging.basicConfig(
@@ -16,21 +17,20 @@ logger = logging.getLogger(__name__)
 class ResearchEngine:
     def __init__(
         self,
-        serpapi_api_key: str,
         jina_api_key: str,
         config
     ):
-        self.serpapi_api_key = serpapi_api_key
         self.jina_api_key = jina_api_key
         
-        # Initialize LLM provider
+        # Initialize providers
         self.llm_provider = get_llm_provider(config)
+        self.search_provider = get_search_provider(config)
         
         # API endpoints
-        self.serpapi_url = "https://serpapi.com/search"
         self.jina_base_url = "https://r.jina.ai/"
         
-        logger.info(f"ResearchEngine initialized with provider: {config.llm_provider}")
+        logger.info(f"ResearchEngine initialized with LLM provider: {config.llm_provider}")
+        logger.info(f"Using search provider: {config.search_provider}")
         
     async def call_llm(self, session: aiohttp.ClientSession, messages: List[Dict[str, str]]) -> Optional[str]:
         """Call the LLM provider with the given messages."""
@@ -59,30 +59,20 @@ class ResearchEngine:
 
     async def generate_search_queries(self, session: aiohttp.ClientSession, user_query: str) -> List[str]:
         prompt = (
-            "Generate exactly 4 search queries as a Python list of strings.\n"
-            "RESPOND WITH ONLY THE LIST, NO OTHER TEXT.\n"
-            "Each query should focus on a different aspect.\n"
-            "Format: ['query 1', 'query 2', 'query 3', 'query 4']\n"
-            f"Topic: {user_query}"
+            "You are an expert research assistant. Given the user's query, generate up to four distinct, "
+            "precise search queries that would help gather comprehensive information on the topic. "
+            "Return only a Python list of strings, for example: ['query1', 'query2', 'query3']."
         )
         messages = [
-            {
-                "role": "system", 
-                "content": "You are a search query generator. Respond with ONLY a Python list of strings, no other text."
-            },
-            {
-                "role": "user", 
-                "content": prompt
-            }
+            {"role": "system", "content": "You are a helpful and precise research assistant."},
+            {"role": "user", "content": f"User Query: {user_query}\n\n{prompt}"}
         ]
         
         logger.info(f"Generating search queries for: {user_query}")
         response = await self.call_llm(session, messages)
         if response:
             try:
-                # More aggressive cleaning to remove any explanatory text
                 cleaned_response = self._clean_llm_response(response)
-                # Find the first [ and last ] to extract just the list
                 start = cleaned_response.find('[')
                 end = cleaned_response.rfind(']') + 1
                 if start != -1 and end != 0:
@@ -92,7 +82,7 @@ class ResearchEngine:
                     if isinstance(queries, list):
                         if len(queries) > 0 and all(isinstance(q, str) for q in queries):
                             logger.info(f"Generated queries: {queries}")
-                            return queries[:4]  # Ensure we only return 4 queries
+                            return queries[:4]
                         else:
                             logger.warning("Generated empty list or invalid query types")
                     else:
@@ -105,28 +95,7 @@ class ResearchEngine:
         return []
 
     async def perform_search(self, session: aiohttp.ClientSession, query: str) -> List[str]:
-        params = {
-            "api_key": self.serpapi_api_key,
-            "q": query,
-            "num": 10
-        }
-        
-        try:
-            logger.info(f"Performing SERPAPI search for query: {query}")
-            async with session.get(self.serpapi_url, params=params) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    organic_results = data.get("organic_results", [])
-                    links = [result["link"] for result in organic_results if "link" in result]
-                    logger.info(f"Found {len(links)} results from SERPAPI")
-                    logger.debug(f"Search results: {links}")
-                    return links
-                else:
-                    logger.error(f"SERPAPI error: {resp.status}")
-                    return []
-        except Exception as e:
-            logger.error(f"Error performing SERPAPI search: {str(e)}", exc_info=True)
-            return []
+        return await self.search_provider.search(session, query)
 
     async def fetch_webpage_text(self, session: aiohttp.ClientSession, url: str) -> str:
         headers = {"Authorization": f"Bearer {self.jina_api_key}"}
@@ -146,34 +115,29 @@ class ResearchEngine:
 
     async def is_page_useful(self, session: aiohttp.ClientSession, user_query: str, page_text: str) -> str:
         prompt = (
-            "Evaluate if this content would help answer the query in any meaningful way. "
-            "Content is considered useful if it:\n"
-            "1. Addresses any aspect of the query directly or indirectly\n"
-            "2. Provides relevant background, context, or related insights\n"
-            "3. Offers expert opinions, research findings, or real-world examples\n"
-            "4. Contains information that would contribute to understanding the topic\n\n"
-            "Even if the content only partially addresses the query, it may still be useful.\n\n"
-            "Answer with EXACTLY 'Yes' or 'No', followed by a brief reason."
+            "You are a critical research evaluator. Given the user's query and the content of a webpage, "
+            "determine if the webpage contains information relevant and useful for addressing the query. "
+            "Respond with exactly one word: 'Yes' if the page is useful, or 'No' if it is not. Do not include any extra text."
         )
         messages = [
-            {"role": "system", "content": "You are a content evaluator. Consider both direct and indirect relevance to the query."},
-            {"role": "user", "content": f"Query: {user_query}\n\nContent:\n{page_text[:2000]}\n\n{prompt}"}
+            {"role": "system", "content": "You are a strict and concise evaluator of research relevance."},
+            {"role": "user", "content": f"User Query: {user_query}\n\nWebpage Content (first 20000 characters):\n{page_text[:20000]}\n\n{prompt}"}
         ]
         
         logger.info("Evaluating page usefulness")
         response = await self.call_llm(session, messages)
         if response:
-            # Extract just the Yes/No from the response
-            answer = self._clean_llm_response(response).strip().lower().split()[0]
+            answer = self._clean_llm_response(response).strip()
             logger.info(f"Page usefulness evaluation result: {response}")
             
-            # Accept content unless it's clearly not useful
-            if answer == "no":
-                return "No"
-            return "Yes"
+            if answer in ["Yes", "No"]:
+                return answer
+            elif "yes" in answer.lower():
+                return "Yes"
+            return "No"
             
-        logger.warning("Failed to evaluate page usefulness, defaulting to Yes")
-        return "Yes"  # Default to including content if evaluation fails
+        logger.warning("Failed to evaluate page usefulness, defaulting to No")
+        return "No"
 
     async def extract_relevant_context(
         self,
@@ -183,22 +147,16 @@ class ResearchEngine:
         page_text: str
     ) -> Optional[str]:
         prompt = (
-            "Extract information that directly helps answer the query. Focus on:\n"
-            "1. Specific facts, data, or evidence\n"
-            "2. Expert analysis or insights\n"
-            "3. Relevant examples or case studies\n"
-            "4. Direct answers to aspects of the query\n\n"
-            "Format the extraction as bullet points, each starting with '-'.\n"
-            "Include brief context when needed for understanding.\n"
-            "Exclude general background unless it's essential.\n\n"
-            "If no substantive information is found, return exactly 'No relevant information found.'"
+            "You are an expert information extractor. Given the user's query, the search query that led to this page, "
+            "and the webpage content, extract all pieces of information that are relevant to answering the user's query. "
+            "Return only the relevant context as plain text without commentary."
         )
         messages = [
-            {"role": "system", "content": "You are a precise information extractor. Focus on substance over generalities."},
+            {"role": "system", "content": "You are an expert in extracting and summarizing relevant information."},
             {
                 "role": "user",
-                "content": f"Query: {user_query}\nSearch Query: {search_query}\n\n"
-                          f"Content:\n{page_text[:20000]}\n\n{prompt}"
+                "content": f"User Query: {user_query}\nSearch Query: {search_query}\n\n"
+                          f"Webpage Content (first 20000 characters):\n{page_text[:20000]}\n\n{prompt}"
             }
         ]
         
@@ -206,13 +164,10 @@ class ResearchEngine:
         response = await self.call_llm(session, messages)
         if response:
             context = response.strip()
-            if context == "No relevant information found.":
-                return None
-            if not context.startswith('-'):
-                # If response isn't in bullet points, it's probably not specific enough
-                return None
-            logger.debug(f"Extracted context (first 100 chars): {context[:100]}")
-            return context
+            if context:
+                logger.debug(f"Extracted context (first 100 chars): {context[:100]}")
+                return context
+            
         logger.warning("Failed to extract context")
         return None
 
@@ -225,17 +180,18 @@ class ResearchEngine:
     ) -> Optional[List[str]]:
         context_combined = "\n".join(contexts)
         prompt = (
-            "Based on the gathered information, either:\n"
-            "1. Return a Python list of new search queries if more research is needed\n"
-            "2. Return exactly '<done>' if enough information is gathered\n"
-            "Format: ['query1', 'query2'] or '<done>'"
+            "You are an analytical research assistant. Based on the original query, the search queries performed so far, "
+            "and the extracted contexts from webpages, determine if further research is needed. "
+            "If further research is needed, provide up to four new search queries as a Python list (for example, "
+            "['new query1', 'new query2']). If you believe no further research is needed, respond with exactly ."
+            "\nOutput only a Python list or the token  without any additional text."
         )
         messages = [
-            {"role": "system", "content": "You are a research planner. Be concise and direct."},
+            {"role": "system", "content": "You are a systematic research planner."},
             {
                 "role": "user",
-                "content": f"Topic: {user_query}\nPrevious Searches: {previous_queries}\n\n"
-                          f"Current Information:\n{context_combined}\n\n{prompt}"
+                "content": f"User Query: {user_query}\nPrevious Search Queries: {previous_queries}\n\n"
+                          f"Extracted Relevant Contexts:\n{context_combined}\n\n{prompt}"
             }
         ]
         
@@ -244,7 +200,7 @@ class ResearchEngine:
         if response:
             cleaned = self._clean_llm_response(response)
             logger.debug(f"Response for new queries: {cleaned}")
-            if cleaned == "<done>":
+            if cleaned == "":
                 logger.info("Research complete signal received")
                 return None
             try:
@@ -265,39 +221,29 @@ class ResearchEngine:
         user_query: str,
         contexts: List[str]
     ) -> str:
+        if not contexts or not any(ctx.strip() for ctx in contexts):
+            return "I couldn't find enough relevant information to answer your question. Please try rephrasing or being more specific."
+
         context_combined = "\n".join(contexts)
         prompt = (
-            "Write a focused research report that directly addresses the query. Follow these guidelines:\n"
-            "1. Start with a brief, focused introduction that states the specific research question\n"
-            "2. Present concrete findings, evidence, and examples from the research\n"
-            "3. Include specific data points, expert opinions, and real-world cases where available\n"
-            "4. Analyze contradictions or differing viewpoints found in the research\n"
-            "5. Draw conclusions based on the evidence gathered\n\n"
-            "Focus on depth over breadth. Avoid generic statements without supporting evidence.\n"
-            "If certain aspects lack solid evidence, acknowledge the limitations of the findings."
+            "You are an expert researcher and report writer. Based on the gathered contexts below and the original query, "
+            "write a comprehensive, well-structured, and detailed report that addresses the query thoroughly. "
+            "Include all relevant insights and conclusions without extraneous commentary."
         )
         messages = [
-            {"role": "system", "content": "You are a research analyst synthesizing specific findings. Focus on concrete evidence and insights."},
+            {"role": "system", "content": "You are a skilled report writer."},
             {
                 "role": "user",
-                "content": f"Query: {user_query}\n\nResearch Findings:\n{context_combined}\n\n{prompt}"
+                "content": f"User Query: {user_query}\n\nGathered Relevant Contexts:\n{context_combined}\n\n{prompt}"
             }
         ]
         
         response = await self.call_llm(session, messages)
         if not response:
-            return "Unable to generate report due to insufficient research findings."
+            return "Error analyzing research data. Please try again."
             
-        # Add research methodology section
-        methodology = (
-            "\n\n## Research Methodology\n"
-            f"This report is based on analysis of multiple sources examining {user_query}. "
-            "The research process involved:\n"
-            "- Systematic search and analysis of relevant publications and studies\n"
-            "- Evaluation of source credibility and relevance\n"
-            "- Synthesis of findings from multiple perspectives\n"
-            "- Focus on evidence-based conclusions\n"
-        )
+        # Add methodology note
+        methodology = f"\n\nMethodology: Research conducted to answer '{user_query}' using systematic search and synthesis of findings."
         
         return response + methodology
 

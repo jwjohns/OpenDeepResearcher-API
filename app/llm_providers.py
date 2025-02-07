@@ -72,7 +72,29 @@ class OpenAIProvider(LLMProvider):
     def __init__(self, api_key: str, model: str = "gpt-3.5-turbo"):
         self.api_key = api_key
         self.model = model
-        self.url = "https://api.openai.com/v1/chat/completions"
+        self.base_url = "https://api.openai.com/v1"
+    
+    async def list_available_models(self, session: aiohttp.ClientSession) -> List[str]:
+        """Fetch available models from OpenAI API."""
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            async with session.get(f"{self.base_url}/models", headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    # Filter for chat models only
+                    models = [model["id"] for model in data["data"] 
+                            if "gpt" in model["id"] or model["id"].startswith("ft:")]
+                    return sorted(models)
+                else:
+                    logger.error(f"OpenAI models fetch error: {resp.status}")
+                    return []
+        except Exception as e:
+            logger.error(f"Error fetching OpenAI models: {str(e)}", exc_info=True)
+            return []
     
     async def generate_completion(
         self,
@@ -94,7 +116,7 @@ class OpenAIProvider(LLMProvider):
                 "max_tokens": max_tokens
             }
             
-            async with session.post(self.url, headers=headers, json=payload) as resp:
+            async with session.post(f"{self.base_url}/chat/completions", headers=headers, json=payload) as resp:
                 response_text = await resp.text()
                 logger.debug(f"OpenAI raw response: {response_text}")
                 

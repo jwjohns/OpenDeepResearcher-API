@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { MantineProvider, AppShell, Title, Container, Stack, Alert, rem, Text, createTheme, Group } from '@mantine/core';
-import { IconInfoCircle, IconBrain, IconAlertCircle } from '@tabler/icons-react';
+import { MantineProvider, AppShell, Title, Container, Stack, Alert, rem, Text, createTheme, Group, Button } from '@mantine/core';
+import { IconInfoCircle, IconBrain, IconAlertCircle, IconChevronDown, IconChevronRight, IconHistory } from '@tabler/icons-react';
 import { ResearchForm } from './components/ResearchForm';
 import { ResearchProgress } from './components/ResearchProgress';
 import { ResearchReport } from './components/ResearchReport';
+import { ResearchSidebar } from './components/ResearchSidebar';
+import { LLMConfig } from './components/LLMConfig';
 import { apiClient, ResearchRequest, ResearchUpdate } from './api/client';
 
 const theme = createTheme({
@@ -85,11 +87,29 @@ export default function App() {
   const [logs, setLogs] = useState<string[]>([]);
   const [error, setError] = useState<string>('');
   const [isConnected, setIsConnected] = useState(true);
-
+  const [showConfig, setShowConfig] = useState(true);
+  const [showResearchForm, setShowResearchForm] = useState(true);
+  const [showProgress, setShowProgress] = useState(true);
+  const [provider, setProvider] = useState('openai');
+  const [model, setModel] = useState('gpt-4');
+  const [progressHideTimeout, setProgressHideTimeout] = useState<number | null>(null);
+  const [sidebarOpened, setSidebarOpened] = useState(false);
+  const [currentReport, setCurrentReport] = useState<{
+    query: string;
+    report: string;
+    timestamp: number;
+  } | null>(null);
+  
   const handleResearch = async (request: ResearchRequest) => {
     if (!isConnected) {
       setError('API is not available. Please try again later.');
       return;
+    }
+
+    // Clear any existing timeout
+    if (progressHideTimeout) {
+      clearTimeout(progressHideTimeout);
+      setProgressHideTimeout(null);
     }
 
     setIsLoading(true);
@@ -97,6 +117,11 @@ export default function App() {
     setReport('');
     setLogs([]);
     setError('');
+    
+    // Collapse config and form when research starts
+    setShowConfig(false);
+    setShowResearchForm(false);
+    setShowProgress(true);
 
     try {
       const cleanup = apiClient.streamResearch(request, (update) => {
@@ -117,16 +142,43 @@ export default function App() {
           setReport(update.report);
           setLogs(update.logs || []);
           setIsLoading(false);
+          
+          // Update current report for history
+          setCurrentReport({
+            query: request.query,
+            report: update.report,
+            timestamp: Date.now()
+          });
+          
+          // Set timeout to hide progress after 2 seconds
+          const timeout = setTimeout(() => {
+            setShowProgress(false);
+          }, 2000);
+          setProgressHideTimeout(timeout);
         }
       });
 
-      return cleanup;
+      return () => {
+        cleanup();
+        if (progressHideTimeout) {
+          clearTimeout(progressHideTimeout);
+        }
+      };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to start research. Please try again.';
       setError(errorMessage);
       setIsLoading(false);
     }
   };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (progressHideTimeout) {
+        clearTimeout(progressHideTimeout);
+      }
+    };
+  }, [progressHideTimeout]);
 
   // Add periodic health check
   useEffect(() => {
@@ -153,6 +205,29 @@ export default function App() {
     setError('');
   };
 
+  const handleConfigChange = (newProvider: string, newModel: string) => {
+    setProvider(newProvider);
+    setModel(newModel);
+    setUpdates([]);
+    setReport('');
+    setLogs([]);
+    setError('');
+  };
+
+  const toggleSection = (section: 'config' | 'form' | 'progress') => {
+    switch (section) {
+      case 'config':
+        setShowConfig(!showConfig);
+        break;
+      case 'form':
+        setShowResearchForm(!showResearchForm);
+        break;
+      case 'progress':
+        setShowProgress(!showProgress);
+        break;
+    }
+  };
+
   return (
     <MantineProvider theme={theme}>
       <AppShell
@@ -174,9 +249,7 @@ export default function App() {
               <Group gap="xs" wrap="nowrap">
                 <IconBrain 
                   size={32} 
-                  style={{ 
-                    color: 'var(--mantine-color-blue-6)',
-                  }} 
+                  style={{ color: 'var(--mantine-color-blue-6)' }} 
                 />
                 <div>
                   <Title order={1} size={rem(24)} style={{ 
@@ -188,23 +261,32 @@ export default function App() {
                   <Text size="xs" c="dimmed" fw={500}>AI-Powered Research Assistant</Text>
                 </div>
               </Group>
-              {!isConnected && (
-                <Alert 
-                  icon={<IconAlertCircle size={16} />}
-                  color="red"
-                  variant="light"
-                  styles={{
-                    root: {
-                      padding: '0.5rem 0.75rem',
-                    },
-                    message: {
-                      margin: 0,
-                    }
-                  }}
+              <Group>
+                {!isConnected && (
+                  <Alert 
+                    icon={<IconAlertCircle size={16} />}
+                    color="red"
+                    variant="light"
+                    styles={{
+                      root: {
+                        padding: '0.5rem 0.75rem',
+                      },
+                      message: {
+                        margin: 0,
+                      }
+                    }}
+                  >
+                    API Disconnected
+                  </Alert>
+                )}
+                <Button
+                  variant="subtle"
+                  leftSection={<IconHistory size={16} />}
+                  onClick={() => setSidebarOpened(true)}
                 >
-                  API Disconnected
-                </Alert>
-              )}
+                  History
+                </Button>
+              </Group>
             </Group>
           </Container>
         </AppShell.Header>
@@ -228,25 +310,83 @@ export default function App() {
                 </Alert>
               )}
 
-              <ResearchForm 
-                onSubmit={handleResearch}
-                isLoading={isLoading}
-                isDisabled={!isConnected}
-              />
+              <Group justify="space-between" align="center" onClick={() => toggleSection('config')} style={{ cursor: 'pointer' }}>
+                <Group gap="md">
+                  <Title order={3}>LLM Configuration</Title>
+                  {!showConfig && (
+                    <Text size="sm" c="dimmed" span style={{ marginLeft: '1rem' }}>
+                      {`${provider.charAt(0).toUpperCase() + provider.slice(1)} / ${model}`}
+                    </Text>
+                  )}
+                </Group>
+                {showConfig ? <IconChevronDown size={20} /> : <IconChevronRight size={20} />}
+              </Group>
+              {showConfig && <LLMConfig onConfigChange={handleConfigChange} />}
+
+              <Group justify="space-between" align="center" onClick={() => toggleSection('form')} style={{ cursor: 'pointer' }}>
+                <Group gap="md">
+                  <Title order={3}>Research Query</Title>
+                  {!showResearchForm && updates.length > 0 && (
+                    <Text size="sm" c="dimmed" span style={{ marginLeft: '1rem' }}>
+                      {updates[0]?.message || ''}
+                    </Text>
+                  )}
+                </Group>
+                {showResearchForm ? <IconChevronDown size={20} /> : <IconChevronRight size={20} />}
+              </Group>
+              {showResearchForm && (
+                <ResearchForm 
+                  onSubmit={handleResearch}
+                  isLoading={isLoading}
+                  isDisabled={!isConnected}
+                />
+              )}
 
               {updates.length > 0 && (
-                <ResearchProgress updates={updates} />
+                <>
+                  <Group justify="space-between" align="center" onClick={() => toggleSection('progress')} style={{ cursor: 'pointer' }}>
+                    <Group gap="md">
+                      <Title order={3}>Research Progress</Title>
+                      {!showProgress && (
+                        <Group gap="xs">
+                          {updates[updates.length - 1]?.type === 'complete' ? (
+                            <Text size="sm" c="teal" span>Complete</Text>
+                          ) : (
+                            <>
+                              <Text size="sm" c="dimmed" span>
+                                {updates[updates.length - 1]?.message || ''}
+                              </Text>
+                              {updates[updates.length - 1]?.type === 'processing' && (
+                                <Text size="sm" c="blue" span>Processing...</Text>
+                              )}
+                            </>
+                          )}
+                        </Group>
+                      )}
+                    </Group>
+                    {showProgress ? <IconChevronDown size={20} /> : <IconChevronRight size={20} />}
+                  </Group>
+                  {showProgress && <ResearchProgress updates={updates} />}
+                </>
               )}
 
               {report && (
-                <ResearchReport 
-                  report={report}
-                  logs={logs}
-                />
+                <>
+                  <Group justify="space-between" align="center">
+                    <Title order={3}>Research Report</Title>
+                  </Group>
+                  <ResearchReport report={report} logs={logs} />
+                </>
               )}
             </Stack>
           </Container>
         </AppShell.Main>
+        
+        <ResearchSidebar
+          opened={sidebarOpened}
+          onClose={() => setSidebarOpened(false)}
+          currentReport={currentReport || undefined}
+        />
       </AppShell>
     </MantineProvider>
   );

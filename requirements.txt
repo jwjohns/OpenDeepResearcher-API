@@ -8,3 +8,5 @@ python-multipart==0.0.9
 nest-asyncio==1.6.0
 anthropic==0.16.0  # For Anthropic API
 openai==1.12.0    # For OpenAI API 
+beautifulsoup4==4.12.3  # For web scraping and search providers
+lxml==5.1.0  # Faster XML/HTML parser for beautifulsoup4 
